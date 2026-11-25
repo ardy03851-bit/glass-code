@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#2b2d31">
+<title>Glass Code</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header class="bar glass">
+    <div class="brand">Glass Code</div>
+    <div class="tabs" id="tabs">
+      <button data-pane="files">Files</button>
+      <button data-pane="editor" class="on">Code</button>
+      <button data-pane="preview">Preview</button>
+    </div>
+    <div class="grp">
+      <button id="btnImport" title="Import zip">Import zip</button>
+      <button id="btnAddFiles">Add files</button>
+      <button id="btnExportFile">Export file</button>
+      <button id="btnExportAll">Export all</button>
+      <button id="btnPopup" class="accent">Open preview</button>
+    </div>
+  </header>
+
+  <main id="main" data-pane="editor">
+    <aside id="files" class="glass pane">
+      <div class="phead"><span>Files</span><span class="grp"><button id="btnNewFile">+ File</button><button id="btnNewFolder">+ Folder</button></span></div>
+      <div id="tree" role="tree"></div>
+      <div id="stats" class="muted"></div>
+    </aside>
+
+    <section id="editor" class="glass pane">
+      <div class="phead"><span id="curName" class="name">No file</span>
+        <span class="grp">
+          <button id="btnSelAll">Select all</button>
+          <button id="btnCut">Cut</button>
+          <button id="btnCopy">Copy</button>
+          <button id="btnPaste">Paste</button>
+          <button id="btnReplaceClip" title="Replace the whole file with clipboard contents">Replace with copied</button>
+          <button id="btnFind">Find</button>
+          <button id="btnRun" class="accent">Run</button>
+        </span>
+      </div>
+      <div id="findbar" hidden>
+        <input id="findIn" placeholder="Find" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <input id="replIn" placeholder="Replace with" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <button id="btnReplAll">Replace all</button><button id="btnFindClose">Close</button>
+        <span id="findCount" class="muted"></span>
+      </div>
+      <div id="edwrap">
+        <pre id="gutter" aria-hidden="true"></pre>
+        <textarea id="code" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" wrap="off" disabled></textarea>
+        <div id="nonText" hidden></div>
+      </div>
+    </section>
+
+    <section id="preview" class="glass pane">
+      <div class="phead"><span>Preview <span id="pvName" class="muted"></span></span>
+        <span class="grp"><label class="chk"><input type="checkbox" id="live" checked> Live</label><button id="btnReload">Reload</button></span></div>
+      <div id="frames"></div>
+    </section>
+  </main>
+  <div id="progress" class="glass" hidden><div id="pText"></div><div class="pbar"><i id="pFill"></i></div></div>
+  <div id="toast" class="glass" hidden></div>
+</div>
+
+<div id="menu" class="glass" hidden>
+  <button id="mTab">Open in new tab</button>
+  <button id="mFull">Open full screen</button>
+</div>
+<div id="fs" hidden><button id="fsClose" class="glass">Close</button><div id="fsFrame"></div></div>
+<input type="file" id="zipIn" accept=".zip,application/zip,application/x-zip-compressed" hidden>
+<input type="file" id="fileIn" multiple hidden>
+
+<script src="lib/fflate.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
