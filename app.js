@@ -7,8 +7,22 @@ let cur = null, sel = null, pagePath = null;
 const open = new Set(['']);            // expanded folders
 const showMore = new Map();            // folder -> rendered entry limit
 const PAGE = 300, MAX_EDIT = 3 * 1024 * 1024;
-const TEXT_EXT = new Set('html htm css js mjs cjs ts tsx jsx json md txt svg xml csv yml yaml toml ini env py rb php java c h cpp hpp cs go rs sh bat sql vue svelte map lock gitignore less scss sass webmanifest log'.split(' '));
-const MIME = {html:'text/html',htm:'text/html',css:'text/css',js:'text/javascript',mjs:'text/javascript',json:'application/json',svg:'image/svg+xml',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',avif:'image/avif',ico:'image/x-icon',mp3:'audio/mpeg',wav:'audio/wav',ogg:'audio/ogg',mp4:'video/mp4',webm:'video/webm',woff:'font/woff',woff2:'font/woff2',ttf:'font/ttf',otf:'font/otf',txt:'text/plain',xml:'application/xml',wasm:'application/wasm',pdf:'application/pdf',csv:'text/csv',md:'text/markdown'};
+const W = x => new Set(x.split(' '));
+const TEXT_EXT = W('html htm xhtml css js mjs cjs ts mts cts tsx jsx json jsonc json5 md markdown mdx txt text svg xml xsl xslt csv tsv yml yaml toml ini cfg conf env properties py pyw rb php phtml java kt kts c h cpp cc cxx hpp hh cs go rs swift m mm dart lua r scala sh bash zsh fish bat cmd ps1 sql vue svelte astro map lock gitignore gitattributes editorconfig less scss sass styl pug jade hbs handlebars mustache twig ejs njk liquid tex bib log diff patch gradle tf tfvars hcl graphql gql proto sol ex exs erl hrl clj cljs edn hs lhs ml mli fs fsx jl nim zig v vb vbs pl pm tcl coffee elm rkt lisp scm cr d f f90 for ada asm s glsl vert frag wgsl hlsl cu cuh ipynb webmanifest manifest rss atom ics vcf srt vtt gltf obj dae mtl rst adoc org');
+const KIND = {};
+const addKind = (k, x) => x.split(' ').forEach(e => KIND[e] = k);
+addKind('image', 'png jpg jpeg gif webp avif bmp ico apng tif tiff heic heif jfif cur');
+addKind('video', 'mp4 m4v mov webm ogv mkv avi 3gp mpeg mpg');
+addKind('audio', 'mp3 wav ogg oga m4a aac flac opus weba aif aiff mid midi');
+addKind('font', 'ttf otf woff woff2 eot');
+addKind('pdf', 'pdf');
+addKind('3d', 'glb gltf obj stl ply fbx dae 3mf 3ds');
+addKind('archive', 'zip jar apk docx xlsx pptx epub odt ods odp war aar xpi');
+addKind('binary', 'gz tgz tar 7z rar bz2 xz zst exe dll so dylib bin dat db sqlite sqlite3 class o a lib iso dmg psd ai sketch fig wasm pyc jar_ pkl npy parquet');
+addKind('md', 'md markdown'); addKind('svg', 'svg');
+const FORCE_BIN = W('image video audio font pdf archive binary');
+const BIN_3D = W('glb fbx 3mf 3ds');
+const MIME = {html:'text/html',htm:'text/html',css:'text/css',js:'text/javascript',mjs:'text/javascript',json:'application/json',svg:'image/svg+xml',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',avif:'image/avif',bmp:'image/bmp',ico:'image/x-icon',apng:'image/apng',tif:'image/tiff',tiff:'image/tiff',heic:'image/heic',heif:'image/heif',mp3:'audio/mpeg',wav:'audio/wav',ogg:'audio/ogg',oga:'audio/ogg',m4a:'audio/mp4',aac:'audio/aac',flac:'audio/flac',opus:'audio/ogg',weba:'audio/webm',mid:'audio/midi',mp4:'video/mp4',m4v:'video/mp4',mov:'video/quicktime',webm:'video/webm',ogv:'video/ogg',mkv:'video/x-matroska',avi:'video/x-msvideo','3gp':'video/3gpp',mpeg:'video/mpeg',mpg:'video/mpeg',woff:'font/woff',woff2:'font/woff2',ttf:'font/ttf',otf:'font/otf',eot:'application/vnd.ms-fontobject',txt:'text/plain',xml:'application/xml',wasm:'application/wasm',pdf:'application/pdf',csv:'text/csv',md:'text/markdown',glb:'model/gltf-binary',gltf:'model/gltf+json',obj:'model/obj',stl:'model/stl',zip:'application/zip',webmanifest:'application/manifest+json'};
 const extOf = p => { const m = /\.([^./]+)$/.exec(p); return m ? m[1].toLowerCase() : ''; };
 const base = p => p.slice(p.lastIndexOf('/') + 1);
 const dirOf = p => p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '';
@@ -33,13 +47,15 @@ async function loadAll() { const all = await tx('readonly', s => s.getAll()); re
 /* ---------- file model ---------- */
 const getBytes = p => { const f = files.get(p); return f.bytes || (f.bytes = enc.encode(f.text)); };
 const sizeOf = p => { const f = files.get(p); return f.bytes ? f.bytes.length : f.text.length; };
+const viewKind = p => { const e = extOf(p); return /\.html?$/i.test(p) ? null : KIND[e] || null; };
 function isText(p) {
   const f = files.get(p); if (!f) return false;
   if (f.text !== undefined) return true;
-  const e = extOf(p);
+  const e = extOf(p), k = KIND[e];
+  if (FORCE_BIN.has(k) || BIN_3D.has(e)) return false;
   if (TEXT_EXT.has(e)) return true;
-  if (MIME[e] && !/^(text|application\/(json|xml))/.test(MIME[e])) return false;
-  const b = f.bytes.subarray(0, 2000); for (const c of b) if (c === 0) return false; return !MIME[e] || true;
+  const b = f.bytes.subarray(0, 4000); let bad = 0; for (const c of b) { if (c === 0) return false; if (c < 7 || (c > 13 && c < 32 && c !== 27)) bad++; }
+  return bad < b.length * 0.05;
 }
 function getText(p) { const f = files.get(p); if (f.text === undefined) { f.text = dec.decode(f.bytes); } return f.text; }
 function setFile(p, data) {
@@ -64,6 +80,18 @@ function pane(n) { mainEl.dataset.pane = n; document.querySelectorAll('#tabs but
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { pane(b.dataset.pane); if (b.dataset.pane === 'preview') schedulePreview(0); });
 const narrow = () => matchMedia('(max-width:1100px)').matches;
 
+/* ---------- icons ---------- */
+let ICONS = null;
+const ico = n => '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ((window.UI_ICONS || {})[n] || '') + '</svg>';
+function fileIcon(p) {
+  if (!ICONS) return null; const n = base(p).toLowerCase();
+  if (ICONS.names[n]) return ICONS.names[n];
+  const parts = n.split('.'); for (let i = 1; i < parts.length; i++) { const e = parts.slice(i).join('.'); if (ICONS.exts[e]) return ICONS.exts[e]; }
+  return ICONS.file;
+}
+function folderIcon(name, openState) { if (!ICONS) return null; const f = ICONS.folders[name.toLowerCase()]; return f ? f[openState ? 1 : 0] : (openState ? ICONS.folderOpen : ICONS.folder); }
+document.querySelectorAll('[data-i]').forEach(el => el.insertAdjacentHTML('afterbegin', ico(el.dataset.i)));
+
 /* ---------- tree ---------- */
 function buildTree() {
   const root = {d: new Map(), f: []};
@@ -78,9 +106,10 @@ let renderQ = 0;
 function renderTree() { cancelAnimationFrame(renderQ); renderQ = requestAnimationFrame(drawTree); }
 function drawTree() {
   const tree = $('tree'), frag = document.createDocumentFragment(), root = buildTree();
-  const mk = (cls, depth, label, icon, path, isDir) => {
-    const r = document.createElement('div'); r.className = 'row' + (cls ? ' ' + cls : ''); r.style.paddingLeft = 8 + depth * 16 + 'px'; r.setAttribute('role', 'treeitem');
-    r.innerHTML = '<span class="ic"></span><span class="nm"></span>'; r.firstChild.textContent = icon; r.children[1].textContent = label;
+  const mk = (cls, depth, label, icon, path, isDir, arrow) => {
+    const r = document.createElement('div'); r.className = 'row' + (cls ? ' ' + cls : ''); r.style.paddingLeft = 6 + depth * 14 + 'px'; r.setAttribute('role', 'treeitem');
+    r.innerHTML = '<span class="ar"></span><span class="ic"></span><span class="nm"></span>'; r.children[0].textContent = arrow || ''; r.children[2].textContent = label;
+    if (icon) { const im = new Image(); im.src = 'icons/' + icon; im.width = im.height = 18; im.loading = 'lazy'; im.decoding = 'async'; im.alt = ''; if (ICONS.dark.includes(icon)) im.className = 'dk'; r.children[1].append(im); }
     if (path != null) {
       r.dataset.path = path; if (sel === path || (!isDir && cur === path && sel == null)) r.classList.add('sel');
       const ed = document.createElement('button'); ed.className = 'x'; ed.textContent = '✎'; ed.setAttribute('aria-label','Rename'); ed.onclick = e => { e.stopPropagation(); renamePath(path); };
@@ -95,10 +124,10 @@ function drawTree() {
     const entries = [...dirs.map(([name, c]) => ({dir: true, name, c})), ...n.f.map(p => ({dir: false, p}))];
     const lim = showMore.get(key) || PAGE;
     for (const e of entries.slice(0, lim)) {
-      if (e.dir) { const o = open.has(e.c.path); frag.append(mk('dir', depth, e.name, o ? '▾' : '▸', e.c.path, true)); if (o) walk(e.c, depth + 1, e.c.path); }
-      else frag.append(mk('', depth, base(e.p), '·', e.p, false));
+      if (e.dir) { const o = open.has(e.c.path); frag.append(mk('dir', depth, e.name, folderIcon(e.name, o), e.c.path, true, o ? '▾' : '▸')); if (o) walk(e.c, depth + 1, e.c.path); }
+      else frag.append(mk('', depth, base(e.p), fileIcon(e.p), e.p, false));
     }
-    if (entries.length > lim) { const m = mk('more', depth, `Show ${Math.min(PAGE, entries.length - lim)} more (${entries.length - lim} hidden)`, '…', null); m.onclick = () => { showMore.set(key, lim + PAGE); drawTree(); }; frag.append(m); }
+    if (entries.length > lim) { const m = mk('more', depth, `Show ${Math.min(PAGE, entries.length - lim)} more (${entries.length - lim} hidden)`, null, null); m.onclick = () => { showMore.set(key, lim + PAGE); drawTree(); }; frag.append(m); }
   };
   walk(root, 0, '');
   tree.replaceChildren(frag);
@@ -125,11 +154,12 @@ function updateGutter() {
 function openFile(p) {
   cur = p; if (p) { sel = p; revealPath(p); if (/\.html?$/i.test(p)) pagePath = p; }
   $('curName').textContent = p || 'No file';
-  const nt = $('nonText'); nt.hidden = true; code.disabled = !p; code.value = ''; gutter._n = 0;
+  const nt = $('nonText'); nt.hidden = true; nt.replaceChildren(); code.disabled = !p; code.value = ''; gutter._n = 0;
   if (p) {
-    if (!isText(p)) { nt.hidden = false; nt.textContent = `${base(p)} · ${fmt(sizeOf(p))} · binary file (kept in project, included in exports and preview)`; code.disabled = true; }
-    else if (sizeOf(p) > MAX_EDIT) { nt.hidden = false; nt.textContent = `${base(p)} · ${fmt(sizeOf(p))} · too large to edit here (kept in project, included in exports and preview)`; code.disabled = true; }
-    else code.value = getText(p);
+    if (!isText(p) || sizeOf(p) > MAX_EDIT) {
+      nt.hidden = false; code.disabled = true; const f = document.createElement('iframe');
+      f.src = viewerUrl(p, !isText(p) ? null : 'binary'); f.setAttribute('allow', 'fullscreen; autoplay'); nt.append(f);
+    } else code.value = getText(p);
   }
   updateGutter(); renderTree(); if (p) schedulePreview();
 }
@@ -257,6 +287,17 @@ function resolveRef(ref, from) {
   const path = parts.join('/'); return files.has(path) ? {path, suf: m[2] || ''} : null;
 }
 const blobUrl = (data, type) => URL.createObjectURL(new Blob([data], {type}));
+function plainUrl(path) {
+  const f = files.get(path), k = path + '@' + f.ver; let u = urlCache.get(k);
+  if (!u) { u = blobUrl(getBytes(path), MIME[extOf(path)] || 'application/octet-stream'); urlCache.set(k, u); if (urlCache.size > 3000) { const o = urlCache.keys().next().value; URL.revokeObjectURL(urlCache.get(o)); urlCache.delete(o); } }
+  return u;
+}
+function viewerUrl(p, forceKind) {
+  const k = forceKind || viewKind(p) || 'binary';
+  const q = new URLSearchParams({kind: k, name: base(p), from: p, size: sizeOf(p), src: plainUrl(p)});
+  return new URL('viewer.html?' + q, location.href).href;
+}
+window.__gcResolve = (ref, from) => { const r = resolveRef(ref, from); return r ? plainUrl(r.path) : null; };
 function Builder(persist) {
   const memo = new Map(), made = [];
   const mk = (data, type) => { const u = blobUrl(data, type); made.push(u); return u; };
@@ -274,8 +315,7 @@ function Builder(persist) {
     else if (e === 'js' || e === 'mjs') u = mk(js(getText(path), path, st), 'text/javascript');
     else if (e === 'html' || e === 'htm') { if (stack.includes(path)) return ''; u = mk(page(path, st), 'text/html;charset=utf-8'); }
     else {
-      const k = path + '@' + f.ver; u = urlCache.get(k);
-      if (!u) { u = blobUrl(getBytes(path), MIME[e] || 'application/octet-stream'); urlCache.set(k, u); if (urlCache.size > 4000) { const o = urlCache.keys().next().value; URL.revokeObjectURL(urlCache.get(o)); urlCache.delete(o); } }
+      u = plainUrl(path);
     }
     memo.set(path, u); return u;
   }
@@ -308,6 +348,7 @@ function pickPage() {
   return ['index.html', 'index.htm'].find(p => files.has(p)) || [...files.keys()].find(p => /\.html?$/i.test(p)) || null;
 }
 function buildFor(persist) {
+  if (cur && files.has(cur) && viewKind(cur)) return {path: cur, url: viewerUrl(cur, isText(cur) && sizeOf(cur) > MAX_EDIT ? 'binary' : null)};
   const p = pickPage();
   if (!p) return {path: null, url: msgPage('No HTML file in this project yet.<br>Add an index.html to see a preview.')};
   pagePath = p;
@@ -370,6 +411,7 @@ const STARTER = {
   'script.js': 'let n = 0;\nconst b = document.getElementById("b");\nb.onclick = () => { b.textContent = "Clicked " + (++n) + " times"; };\n'
 };
 (async () => {
+  try { ICONS = await (await fetch('icons/icons.json')).json(); } catch {}
   db = await dbOpen();
   const saved = await loadAll();
   if (saved.length) saved.forEach(r => files.set(r.path, typeof r.data === 'string' ? {text: r.data, ver: 1} : {bytes: r.data, ver: 1}));

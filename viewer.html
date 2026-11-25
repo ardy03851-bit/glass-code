@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Viewer</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#0b0b0d;color:#e6e7ea;font:15px -apple-system,system-ui,sans-serif;overflow:hidden}
+#root{position:absolute;inset:0;display:flex;flex-direction:column}
+#info{padding:8px 12px;color:#8b8f97;font-size:12px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+#info b{color:#d4d6da;font-weight:600}
+#stage{flex:1;min-height:0;position:relative;overflow:auto;-webkit-overflow-scrolling:touch}
+.center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:16px;text-align:center}
+img.pic{max-width:100%;max-height:100%;object-fit:contain;background:repeating-conic-gradient(#1a1a1d 0 25%,#141416 0 50%) 0 0/20px 20px}
+img.pic.full{max-width:none;max-height:none;object-fit:none}
+video,audio{max-width:100%;max-height:100%;outline:0}
+iframe{border:0;width:100%;height:100%;background:#fff}
+canvas{width:100%;height:100%;display:block;touch-action:none;outline:0}
+button,a.btn{font:inherit;color:#e6e7ea;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:10px;min-height:38px;padding:0 14px;cursor:pointer;display:inline-flex;align-items:center;text-decoration:none}
+button.on{background:rgba(255,255,255,.2)}
+.tools{position:absolute;left:10px;bottom:10px;display:flex;gap:6px;z-index:2}
+pre.hex{margin:0;padding:12px;font:12px/18px ui-monospace,Menlo,monospace;color:#b8bbc2;white-space:pre}
+.md{max-width:820px;margin:0 auto;padding:20px;line-height:1.6;overflow-wrap:anywhere}.md img{max-width:100%}.md pre{background:#17181b;padding:12px;border-radius:10px;overflow:auto}.md code{background:#17181b;padding:1px 5px;border-radius:5px}.md pre code{padding:0}.md a{color:#9db4d6}.md blockquote{border-left:3px solid #444;margin:0;padding-left:12px;color:#9a9ea6}.md h1,.md h2{border-bottom:1px solid #2a2b2f;padding-bottom:6px}
+.spec{padding:20px;max-width:900px;margin:0 auto}.spec input{width:100%;font-size:16px;background:#17181b;color:#fff;border:1px solid #333;border-radius:10px;padding:10px;margin-bottom:12px}.spec .g{word-break:break-all;line-height:1.3;margin:10px 0}
+ul.ar{list-style:none;margin:0;padding:12px;font:13px/22px ui-monospace,Menlo,monospace;color:#b8bbc2}
+</style></head><body>
+<div id="root"><div id="info"></div><div id="stage"></div></div>
+<script src="lib/fflate.min.js"></script>
+<script>
+(function(){
+const q=new URLSearchParams(location.search), kind=q.get('kind'), src=q.get('src'), name=q.get('name')||'file', from=q.get('from')||name, size=+q.get('size')||0;
+const host=(window.parent!==window?window.parent:window.opener)||null;
+const stage=document.getElementById('stage'), info=document.getElementById('info');
+const fmt=n=>n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':n<1073741824?(n/1048576).toFixed(1)+' MB':(n/1073741824).toFixed(2)+' GB';
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function setInfo(extra){info.innerHTML='<b>'+esc(name)+'</b><span>'+fmt(size)+'</span>'+(extra?'<span>'+extra+'</span>':'');}
+setInfo(kind);
+const resolve=u=>{try{return host&&host.__gcResolve?host.__gcResolve(u,from):null}catch(e){return null}};
+const center=h=>{stage.innerHTML='<div class="center">'+h+'</div>';return stage.firstChild};
+const dl=()=>'<a class="btn" href="'+src+'" download="'+esc(name)+'">Download</a>';
+const bytes=()=>fetch(src).then(r=>r.arrayBuffer()).then(b=>new Uint8Array(b));
+const fail=m=>{center('<div>'+esc(m)+'</div>'+dl());};
+const views={
+ image(){const i=new Image();i.className='pic';i.alt=name;i.onload=()=>{setInfo(i.naturalWidth+' × '+i.naturalHeight+' · tap to toggle 1:1')};i.onerror=()=>bytes().then(hex);center('').append(i);i.src=src;i.onclick=()=>i.classList.toggle('full');},
+ video(){const c=center('');const v=document.createElement('video');v.controls=true;v.playsInline=true;v.preload='metadata';v.style.cssText='width:100%;height:100%';v.onerror=()=>fail('This browser cannot play this video format.');v.onloadedmetadata=()=>setInfo(v.videoWidth+' × '+v.videoHeight+' · '+v.duration.toFixed(1)+' s');c.append(v);v.src=src;},
+ audio(){const c=center('<div style="font-size:42px">♪</div>');const a=document.createElement('audio');a.controls=true;a.style.width='min(520px,92%)';a.onerror=()=>fail('This browser cannot play this audio format.');a.onloadedmetadata=()=>setInfo(a.duration.toFixed(1)+' s');c.append(a);a.src=src;},
+ pdf(){stage.innerHTML='<iframe src="'+src+'"></iframe>';},
+ font(){const fam='f'+Math.random().toString(36).slice(2);new FontFace(fam,'url('+src+')').load().then(f=>{document.fonts.add(f);const t='The quick brown fox jumps over the lazy dog';stage.innerHTML='<div class="spec" style="font-family:'+fam+'"><input id="t" value="'+t+'" style="font-family:'+fam+'"><div class="g" style="font-size:64px" id="s1">'+t+'</div><div class="g" style="font-size:32px" id="s2">'+t+'</div><div class="g" style="font-size:18px" id="s3">'+t+'</div><div class="g" style="font-size:28px">ABCDEFGHIJKLMNOPQRSTUVWXYZ<br>abcdefghijklmnopqrstuvwxyz<br>0123456789 !?@#$%&amp;*()[]{}</div></div>';document.getElementById('t').oninput=e=>['s1','s2','s3'].forEach(i=>document.getElementById(i).textContent=e.target.value);setInfo('font');}).catch(()=>bytes().then(hex));},
+ md(){fetch(src).then(r=>r.text()).then(t=>{stage.innerHTML='<div class="md">'+md(t)+'</div>';stage.querySelectorAll('img').forEach(i=>{const r=i.getAttribute('data-src');if(r){const u=resolve(r);i.src=u||r;}});stage.querySelectorAll('a[data-h]').forEach(a=>{a.href=a.dataset.h;a.target='_blank';a.rel='noopener'});});},
+ svg(){views.image();},
+ archive(){bytes().then(b=>{try{const l=[];fflate.unzipSync(b,{filter:i=>{l.push(i);return false}});setInfo(l.length+' entries');stage.innerHTML='<ul class="ar">'+l.slice(0,5000).map(i=>'<li>'+esc(i.name)+' <span style="color:#6c7078">'+fmt(i.originalSize)+'</span></li>').join('')+(l.length>5000?'<li>… '+(l.length-5000)+' more</li>':'')+'</ul>';}catch(e){hex(b)}});},
+ binary(){bytes().then(hex);},
+ '3d'(){
+  const s=document.createElement('script');s.src='lib/viewer3d.min.js';s.onload=()=>view3d();s.onerror=()=>fail('3D engine failed to load.');document.head.append(s);
+ }
+};
+function hex(b){const n=Math.min(b.length,4096);let o='';for(let i=0;i<n;i+=16){let h='',a='';for(let j=0;j<16;j++){if(i+j<n){const v=b[i+j];h+=v.toString(16).padStart(2,'0')+' ';a+=v>31&&v<127?String.fromCharCode(v):'.'}else h+='   '}o+=i.toString(16).padStart(8,'0')+'  '+h+' '+a+'\n'}
+ stage.innerHTML='<div style="padding:10px 12px">'+dl()+'</div><pre class="hex">'+esc(o)+(b.length>n?'\n… first 4 KB shown':'')+'</pre>';setInfo('hex dump');}
+function md(t){const code=[];t=esc(t).replace(/```[^\n]*\n([\s\S]*?)```/g,(m,c)=>{code.push(c);return '\u0000'+(code.length-1)+'\u0000'});
+ const inl=s=>s.replace(/!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g,'<img alt="$1" data-src="$2" src="$2">').replace(/\[([^\]]+)\]\(([^)\s]+)[^)]*\)/g,'<a data-h="$2">$1</a>').replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<i>$2</i>').replace(/~~([^~]+)~~/g,'<s>$1</s>');
+ let out='',list=null;const close=()=>{if(list){out+='</'+list+'>';list=null}};
+ for(const ln of t.split('\n')){let m;
+  if(m=/^(#{1,6})\s+(.*)/.exec(ln)){close();out+='<h'+m[1].length+'>'+inl(m[2])+'</h'+m[1].length+'>'}
+  else if(m=/^\s*[-*+]\s+(.*)/.exec(ln)){if(list!=='ul'){close();out+='<ul>';list='ul'}out+='<li>'+inl(m[1])+'</li>'}
+  else if(m=/^\s*\d+[.)]\s+(.*)/.exec(ln)){if(list!=='ol'){close();out+='<ol>';list='ol'}out+='<li>'+inl(m[1])+'</li>'}
+  else if(m=/^&gt;\s?(.*)/.exec(ln)){close();out+='<blockquote>'+inl(m[1])+'</blockquote>'}
+  else if(/^(-{3,}|\*{3,})\s*$/.test(ln)){close();out+='<hr>'}
+  else if(!ln.trim()){close()}
+  else{close();out+='<p>'+inl(ln)+'</p>'}}
+ close();return out.replace(/\u0000(\d+)\u0000/g,(m,i)=>'<pre><code>'+code[i]+'</code></pre>');}
+function view3d(){
+ const {THREE,OrbitControls,GLTFLoader,OBJLoader,STLLoader,PLYLoader,FBXLoader,ColladaLoader,ThreeMFLoader,TDSLoader,RoomEnvironment}=GC3D;
+ stage.style.overflow='hidden';stage.innerHTML='<canvas></canvas><div class="tools"><button id="bR">Reset</button><button id="bA">Auto-rotate</button><button id="bW">Wireframe</button></div>';
+ const canvas=stage.querySelector('canvas');let renderer;
+ try{renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});}catch(e){return fail('WebGL is not available.')}
+ renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));renderer.setClearColor(0x0b0b0d);
+ const scene=new THREE.Scene();const pm=new THREE.PMREMGenerator(renderer);scene.environment=pm.fromScene(new RoomEnvironment(),0.04).texture;
+ const dir=new THREE.DirectionalLight(0xffffff,1.6);dir.position.set(3,5,4);scene.add(dir,new THREE.HemisphereLight(0xffffff,0x222226,0.8));
+ const cam=new THREE.PerspectiveCamera(45,1,0.01,1e5);const ctl=new OrbitControls(cam,canvas);
+ const grid=new THREE.GridHelper(10,10,0x444448,0x222226);scene.add(grid);
+ let want=false,auto=false,model=null,home=null;const draw=()=>{want=false;ctl.update();renderer.render(scene,cam);if(auto)req()};const req=()=>{if(!want){want=true;requestAnimationFrame(draw)}};
+ ctl.addEventListener('change',req);
+ const resize=()=>{const w=stage.clientWidth,h=stage.clientHeight;renderer.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();req()};new ResizeObserver(resize).observe(stage);
+ function place(obj){model=obj;scene.add(obj);const b=new THREE.Box3().setFromObject(obj),c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()),r=Math.max(s.x,s.y,s.z)||1;
+  grid.scale.setScalar(r/10*1.6);grid.position.set(c.x,b.min.y,c.z);cam.near=r/1000;cam.far=r*100;cam.position.copy(c).add(new THREE.Vector3(r*1.1,r*0.8,r*1.4));ctl.target.copy(c);ctl.update();cam.updateProjectionMatrix();home={p:cam.position.clone(),t:c.clone()};
+  let tris=0,meshes=0;obj.traverse(o=>{if(o.isMesh){meshes++;const g=o.geometry;tris+=(g.index?g.index.count:g.attributes.position.count)/3}});setInfo('3D · '+meshes+' meshes · '+Math.round(tris).toLocaleString()+' triangles');req();}
+ const std=g=>{g.computeVertexNormals&&!g.attributes.normal&&g.computeVertexNormals();return new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:0xb9bec8,roughness:.55,metalness:.1,vertexColors:!!g.attributes.color}))};
+ const mgr=new THREE.LoadingManager();const sb=src.slice(0,src.lastIndexOf('/')+1);mgr.setURLModifier(u=>{if(u.startsWith(sb)&&!/^[0-9a-f-]{36}$/.test(u.slice(sb.length)))u=u.slice(sb.length);else if(/^(blob:|data:)/.test(u))return u;return resolve(decodeURIComponent(u).replace(/^\.\//,''))||u});
+ const ext=name.split('.').pop().toLowerCase();
+ const fix=o=>{o.traverse(m=>{if(m.isMesh&&(!m.material||(Array.isArray(m.material)?false:m.material.type==='MeshPhongMaterial'&&!m.material.map&&m.material.color.getHex()===0xffffff)))m.material=new THREE.MeshStandardMaterial({color:0xb9bec8,roughness:.55,metalness:.1})});return o};
+ const err=e=>fail('Could not load this 3D model: '+(e&&e.message||e));
+ try{
+ if(ext==='glb'||ext==='gltf')new GLTFLoader(mgr).load(src,g=>place(g.scene),undefined,err);
+ else if(ext==='stl')new STLLoader(mgr).load(src,g=>place(std(g)),undefined,err);
+ else if(ext==='ply')new PLYLoader(mgr).load(src,g=>place(std(g)),undefined,err);
+ else if(ext==='obj')new OBJLoader(mgr).load(src,o=>place(fix(o)),undefined,err);
+ else if(ext==='fbx')new FBXLoader(mgr).load(src,o=>place(o),undefined,err);
+ else if(ext==='dae')new ColladaLoader(mgr).load(src,c=>place(c.scene),undefined,err);
+ else if(ext==='3mf')new ThreeMFLoader(mgr).load(src,o=>place(o),undefined,err);
+ else if(ext==='3ds')new TDSLoader(mgr).load(src,o=>place(fix(o)),undefined,err);
+ else err('unsupported format');}catch(e){err(e)}
+ document.getElementById('bR').onclick=()=>{if(home){cam.position.copy(home.p);ctl.target.copy(home.t);ctl.update();req()}};
+ document.getElementById('bA').onclick=e=>{auto=!auto;ctl.autoRotate=auto;e.target.classList.toggle('on',auto);req()};
+ let wf=false;document.getElementById('bW').onclick=e=>{wf=!wf;e.target.classList.toggle('on',wf);model&&model.traverse(o=>{if(o.isMesh)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.wireframe=wf)});req()};
+ window.__gc3d={scene,renderer,req};
+}
+(views[kind]||views.binary)();
+})();
+</script></body></html>

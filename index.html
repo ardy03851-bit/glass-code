@@ -13,24 +13,24 @@
 <body>
 <div id="app">
   <header class="bar glass">
-    <div class="brand">Glass Code</div>
+    <div class="brand"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg>Glass Code</div>
     <div class="tabs" id="tabs">
       <button data-pane="files">Files</button>
       <button data-pane="editor" class="on">Code</button>
       <button data-pane="preview">Preview</button>
     </div>
     <div class="grp">
-      <button id="btnImport" title="Import zip">Import zip</button>
-      <button id="btnAddFiles">Add files</button>
-      <button id="btnExportFile">Export file</button>
-      <button id="btnExportAll">Export all</button>
-      <button id="btnPopup" class="accent">Open preview</button>
+      <button id="btnImport" title="Import zip"><i data-i="package-open"></i><span class="lb">Import zip</span></button>
+      <button id="btnAddFiles"><i data-i="upload"></i><span class="lb">Add files</span></button>
+      <button id="btnExportFile"><i data-i="download"></i><span class="lb">Export file</span></button>
+      <button id="btnExportAll"><i data-i="file-archive"></i><span class="lb">Export all</span></button>
+      <button id="btnPopup" class="accent"><i data-i="external-link"></i><span class="lb">Open preview</span></button>
     </div>
   </header>
 
   <main id="main" data-pane="editor">
     <aside id="files" class="glass pane">
-      <div class="phead"><span>Files</span><span class="grp"><button id="btnNewFile">+ File</button><button id="btnNewFolder">+ Folder</button></span></div>
+      <div class="phead"><span>Files</span><span class="grp"><button id="btnNewFile"><i data-i="file-plus"></i><span class="lb">File</span></button><button id="btnNewFolder"><i data-i="folder-plus"></i><span class="lb">Folder</span></button></span></div>
       <div id="tree" role="tree"></div>
       <div id="stats" class="muted"></div>
     </aside>
@@ -38,19 +38,19 @@
     <section id="editor" class="glass pane">
       <div class="phead"><span id="curName" class="name">No file</span>
         <span class="grp">
-          <button id="btnSelAll">Select all</button>
-          <button id="btnCut">Cut</button>
-          <button id="btnCopy">Copy</button>
-          <button id="btnPaste">Paste</button>
-          <button id="btnReplaceClip" title="Replace the whole file with clipboard contents">Replace with copied</button>
-          <button id="btnFind">Find</button>
-          <button id="btnRun" class="accent">Run</button>
+          <button id="btnSelAll"><i data-i="text-select"></i><span class="lb">Select all</span></button>
+          <button id="btnCut"><i data-i="scissors"></i><span class="lb">Cut</span></button>
+          <button id="btnCopy"><i data-i="copy"></i><span class="lb">Copy</span></button>
+          <button id="btnPaste"><i data-i="clipboard-paste"></i><span class="lb">Paste</span></button>
+          <button id="btnReplaceClip" title="Replace the whole file with clipboard contents"><i data-i="replace-all"></i><span class="lb">Replace with copied</span></button>
+          <button id="btnFind"><i data-i="search"></i><span class="lb">Find</span></button>
+          <button id="btnRun" class="accent"><i data-i="play"></i><span class="lb">Run</span></button>
         </span>
       </div>
       <div id="findbar" hidden>
         <input id="findIn" placeholder="Find" autocapitalize="off" autocorrect="off" spellcheck="false">
         <input id="replIn" placeholder="Replace with" autocapitalize="off" autocorrect="off" spellcheck="false">
-        <button id="btnReplAll">Replace all</button><button id="btnFindClose">Close</button>
+        <button id="btnReplAll"><i data-i="replace-all"></i><span class="lb">Replace all</span></button><button id="btnFindClose"><i data-i="x"></i><span class="lb">Close</span></button>
         <span id="findCount" class="muted"></span>
       </div>
       <div id="edwrap">
@@ -62,7 +62,7 @@
 
     <section id="preview" class="glass pane">
       <div class="phead"><span>Preview <span id="pvName" class="muted"></span></span>
-        <span class="grp"><label class="chk"><input type="checkbox" id="live" checked> Live</label><button id="btnReload">Reload</button></span></div>
+        <span class="grp"><label class="chk"><input type="checkbox" id="live" checked> Live</label><button id="btnReload"><i data-i="rotate-cw"></i><span class="lb">Reload</span></button></span></div>
       <div id="frames"></div>
     </section>
   </main>
@@ -78,6 +78,7 @@
 <input type="file" id="zipIn" accept=".zip,application/zip,application/x-zip-compressed" hidden>
 <input type="file" id="fileIn" multiple hidden>
 
+<script src="lib/ui-icons.js"></script>
 <script src="lib/fflate.min.js"></script>
 <script src="app.js"></script>
 </body>
