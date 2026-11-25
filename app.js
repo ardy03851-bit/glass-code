@@ -347,17 +347,52 @@ function pickPage() {
   if (pagePath && files.has(pagePath)) return pagePath;
   return ['index.html', 'index.htm'].find(p => files.has(p)) || [...files.keys()].find(p => /\.html?$/i.test(p)) || null;
 }
+let swBase = null;   // set once the preview service worker is active
+const swUrl = p => swBase + '__p/' + p.split('/').map(encodeURIComponent).join('/');
+function serveLookup(rel) {
+  let r; try { r = decodeURIComponent(rel); } catch { r = rel; } r = r.replace(/^\/+/, '');
+  const c = r === '' || r.endsWith('/') ? [r + 'index.html', r + 'index.htm'] : [r, r + '.html', r + '/index.html'];
+  return c.find(x => files.has(x)) || null;
+}
+function serveType(p) {
+  const e = extOf(p), m = MIME[e];
+  if (m) return /^(text\/|application\/(json|xml|manifest))|svg|javascript/.test(m) ? m + ';charset=utf-8' : m;
+  return isText(p) ? 'text/plain;charset=utf-8' : 'application/octet-stream';
+}
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => {
+  const d = e.data; if (!d || d.type !== 'gc-get') return; const port = e.ports[0];
+  const p = serveLookup(d.path); if (!p) return port.postMessage({status: 404});
+  const bytes = getBytes(p), total = bytes.length, type = serveType(p); let m;
+  if (d.range && (m = /bytes=(\d*)-(\d*)/.exec(d.range))) {
+    let a = m[1] === '' ? Math.max(0, total - +m[2]) : +m[1], b = m[1] === '' || m[2] === '' ? total - 1 : Math.min(+m[2], total - 1);
+    if (a <= b && a < total) { const buf = bytes.slice(a, b + 1).buffer; return port.postMessage({status: 206, type, buf, start: a, end: b, total}, [buf]); }
+  }
+  const buf = bytes.slice().buffer; port.postMessage({status: 200, type, buf}, [buf]);
+});
+async function initSW() {
+  if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
+  try { const reg = await navigator.serviceWorker.register('sw.js'); await navigator.serviceWorker.ready; swBase = reg.scope; window.__gcSW = true; schedulePreview(0); } catch (e) { console.warn('preview server unavailable, using fallback', e); }
+}
 function buildFor(persist) {
   if (cur && files.has(cur) && viewKind(cur)) return {path: cur, url: viewerUrl(cur, isText(cur) && sizeOf(cur) > MAX_EDIT ? 'binary' : null)};
   const p = pickPage();
   if (!p) return {path: null, url: msgPage('No HTML file in this project yet.<br>Add an index.html to see a preview.')};
   pagePath = p;
-  try { return {path: p, url: new Builder(persist).build(p)}; }
+  try { return {path: p, url: swBase ? swUrl(p) : new Builder(persist).build(p)}; }
   catch (e) { console.error(e); return {path: p, url: msgPage('Preview error: ' + String(e.message).replace(/</g, '&lt;'))}; }
 }
 
 /* ---------- live preview with double-buffered frames ---------- */
-const frames = $('frames'); let pvT = 0, pvSeq = 0, lastPV = 0, active = null;
+const frames = $('frames');
+function applyFrame(f) {
+  if (!f) return; const sel = $('pvWidth').value, fw = frames.clientWidth, fh = frames.clientHeight; let W = sel === 'auto' ? (fw < 1024 ? 1280 : 0) : +sel;
+  const st = f.style; st.right = st.bottom = 'auto'; st.left = st.top = '0';
+  if (!W) { st.width = '100%'; st.height = '100%'; st.transform = 'translateZ(0)'; return; }
+  const sc = fw < W ? fw / W : 1; st.transformOrigin = '0 0'; st.width = W + 'px'; st.height = fh / sc + 'px';
+  st.transform = sc < 1 ? `scale(${sc})` : 'translateZ(0)'; if (sc === 1) st.left = (fw - W) / 2 + 'px';
+}
+new ResizeObserver(() => applyFrame(active)).observe(frames);
+$('pvWidth').onchange = () => { applyFrame(active); }; let pvT = 0, pvSeq = 0, lastPV = 0, active = null;
 function schedulePreview(ms = 300) { clearTimeout(pvT); pvT = setTimeout(renderPreview, ms); }
 function renderPreview() {
   if (document.hidden) return;
@@ -369,7 +404,8 @@ function renderPreview() {
   next.className = 'hide'; next.setAttribute('allow', 'fullscreen; autoplay; camera; microphone; clipboard-write; accelerometer; gyroscope; geolocation');
   next.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock allow-downloads');
   const finish = () => { if (seq !== pvSeq) { next.remove(); return; } next.classList.remove('hide'); if (active && active !== next) active.remove(); active = next; stale.forEach(u => URL.revokeObjectURL(u)); lastPV = performance.now(); };
-  next.onload = finish; next.src = url; frames.append(next);
+  next.onload = () => { finish(); try { const pn = next.contentWindow.location.pathname, k = pn.indexOf('/__p/'); if (k >= 0 && seq === pvSeq) { const rel = serveLookup(pn.slice(k + 5)); if (rel && /\.html?$/i.test(rel)) { pagePath = rel; $('pvName').textContent = '· ' + rel; } } } catch {} };
+  next.src = url; applyFrame(next); frames.append(next);
   setTimeout(() => { if (next.classList.contains('hide') && seq === pvSeq) finish(); }, 4000);
 }
 let pvDirty = false;
@@ -417,7 +453,7 @@ const STARTER = {
   if (saved.length) saved.forEach(r => files.set(r.path, typeof r.data === 'string' ? {text: r.data, ver: 1} : {bytes: r.data, ver: 1}));
   else { for (const k in STARTER) setFile(k, STARTER[k]); await flush(); }
   const entry = files.has('index.html') ? 'index.html' : [...files.keys()][0] || null;
-  openFile(entry); renderTree(); schedulePreview(0);
+  openFile(entry); renderTree(); schedulePreview(0); initSW();
   window.__gc = {files, importZip, exportZip, run, getText, get cur() { return cur; }, ready: true};
 })();
 })();

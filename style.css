@@ -53,3 +53,5 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:260px minmax(0,1fr) 
 @media (max-width:1000px){.bar .grp .lb{display:none}.bar .grp button{padding:0 11px}}
 @media (max-width:760px){#editor .phead .grp .lb{display:none}}
 .row .ic img.dk{filter:invert(.85)}
+select{font:inherit;font-size:14px;color:var(--tx);background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:10px;min-height:40px;padding:0 8px}
+#frames iframe{right:auto;bottom:auto}
