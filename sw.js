@@ -21,10 +21,18 @@ async function serve(req, rel) {
   if (d.status === 206) h['content-range'] = `bytes ${d.start}-${d.end}/${d.total}`;
   return new Response(req.method === 'HEAD' ? null : d.buf, {status: d.status, headers: h});
 }
+async function fromPreview(e) {
+  if (e.request.referrer && e.request.referrer.startsWith(P)) return true;
+  for (const id of [e.clientId, e.resultingClientId]) { if (!id) continue; const c = await self.clients.get(id); if (c && c.url.startsWith(P)) return true; }
+  return false;
+}
 self.addEventListener('fetch', e => {
   const req = e.request, u = new URL(req.url);
   if (u.origin !== location.origin) return;
-  if (req.url.startsWith(P)) return e.respondWith(serve(req, u.pathname.slice(PPATH.length) ));
+  if (req.url.startsWith(P)) return e.respondWith(serve(req, u.pathname.slice(PPATH.length)));
+  if (/\/sw\.js$/.test(u.pathname)) return;
+  if (req.mode === 'navigate' && !(req.referrer && req.referrer.startsWith(P))) return;   // the app itself and unrelated pages load normally
+  if (!e.clientId && !req.referrer) return;
   // root-absolute URLs ("/css/a.css") coming from a preview page map to the project root
-  if (req.referrer && req.referrer.startsWith(P) && !/\/(sw\.js)$/.test(u.pathname)) return e.respondWith(Response.redirect(P + u.pathname.slice(1) + u.search, 307));
+  e.respondWith((async () => (await fromPreview(e)) ? Response.redirect(P + u.pathname.slice(1) + u.search, 307) : fetch(req))());
 });

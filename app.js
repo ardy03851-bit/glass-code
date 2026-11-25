@@ -59,6 +59,7 @@ function isText(p) {
 }
 function getText(p) { const f = files.get(p); if (f.text === undefined) { f.text = dec.decode(f.bytes); } return f.text; }
 function setFile(p, data) {
+  try { localStorage.removeItem('gc-empty'); } catch {}
   const old = files.get(p), f = {ver: (old ? old.ver : 0) + 1};
   if (typeof data === 'string') f.text = data; else f.bytes = data;
   files.set(p, f); dirty.add(p); removed.delete(p);
@@ -194,6 +195,17 @@ $('btnReplAll').onclick = () => {
   if (!needFile()) return; const q = $('findIn').value; if (!q) return;
   const n = code.value.split(q).length - 1; if (!n) return toast('Nothing found');
   const v = code.value.split(q).join($('replIn').value); code.setRangeText(v, 0, code.value.length, 'end'); code.dispatchEvent(new Event('input')); toast(`Replaced ${n}`); countFind();
+};
+
+/* ---------- clear workspace ---------- */
+$('btnClear').onclick = async () => {
+  if (!files.size) return toast('Workspace is already empty');
+  if (!confirm(`Delete all ${files.size.toLocaleString()} files and clear the workspace? This cannot be undone.`)) return;
+  clearTimeout(saveT); dirty.clear(); removed.clear(); files.clear(); open.clear(); open.add(''); showMore.clear();
+  cur = sel = pagePath = null; urlCache.forEach(u => URL.revokeObjectURL(u)); urlCache.clear();
+  try { localStorage.setItem('gc-empty', '1'); } catch {}
+  await tx('readwrite', s => s.clear());
+  openFile(null); renderTree(); renderPreview(); $('findbar').hidden = true; toast('Workspace cleared');
 };
 
 /* ---------- create / upload ---------- */
@@ -352,7 +364,9 @@ const swUrl = p => swBase + '__p/' + p.split('/').map(encodeURIComponent).join('
 function serveLookup(rel) {
   let r; try { r = decodeURIComponent(rel); } catch { r = rel; } r = r.replace(/^\/+/, '');
   const c = r === '' || r.endsWith('/') ? [r + 'index.html', r + 'index.htm'] : [r, r + '.html', r + '/index.html'];
-  return c.find(x => files.has(x)) || null;
+  let hit = c.find(x => files.has(x)); if (hit) return hit;
+  const k = r.indexOf('/'); if (k > 0 && !r.endsWith('/')) { const r2 = r.slice(k + 1); hit = [r2, r2 + '.html', r2 + '/index.html'].find(x => files.has(x)); }   // /repo-name/asset.png style paths
+  return hit || null;
 }
 function serveType(p) {
   const e = extOf(p), m = MIME[e];
@@ -451,7 +465,7 @@ const STARTER = {
   db = await dbOpen();
   const saved = await loadAll();
   if (saved.length) saved.forEach(r => files.set(r.path, typeof r.data === 'string' ? {text: r.data, ver: 1} : {bytes: r.data, ver: 1}));
-  else { for (const k in STARTER) setFile(k, STARTER[k]); await flush(); }
+  else if (!(function () { try { return localStorage.getItem('gc-empty'); } catch { return null; } })()) { for (const k in STARTER) setFile(k, STARTER[k]); await flush(); }
   const entry = files.has('index.html') ? 'index.html' : [...files.keys()][0] || null;
   openFile(entry); renderTree(); schedulePreview(0); initSW();
   window.__gc = {files, importZip, exportZip, run, getText, get cur() { return cur; }, ready: true};
